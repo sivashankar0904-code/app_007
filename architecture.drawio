@@ -1,0 +1,185 @@
+<mxfile host="app" modified="2026-04-14T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram name="Multi-Tenant Chat Architecture" id="arch-001">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Multi-Tenant Realtime Chat — Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#1e3a5f;" vertex="1" parent="1">
+          <mxGeometry x="327" y="20" width="1000" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- CLIENTS -->
+        <!-- ═══════════════════════════════════════ -->
+        <mxCell id="browser" value="🌐 Browser&#xa;WebSocket + REST" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="627" y="80" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mobile" value="📱 Mobile&#xa;WebSocket + REST" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="867" y="80" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- JWT label on arrows -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="browser" target="ingress" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="mobile" target="ingress" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jwt-label" value="JWT Auth" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="800" y="158" width="60" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- INGRESS -->
+        <!-- ═══════════════════════════════════════ -->
+        <mxCell id="ingress" value="🔀 ALB Ingress Controller&#xa;HTTP → REST  |  WebSocket → Django Channels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="577" y="190" width="500" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="ingress" target="django" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- CORE SERVICES ROW -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Django Pods -->
+        <mxCell id="django" value="🐍 Django App Pods (2–3)&#xa;─────────────────────&#xa;• ASGI via Daphne / Uvicorn&#xa;• REST API (DRF) — Org, Users, Chat&#xa;• Django Channels — WebSocket Consumers&#xa;• JWT Auth (simplejwt)&#xa;• Django Signals → Celery Tasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="327" y="310" width="300" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Redis -->
+        <mxCell id="redis" value="🔴 Redis&#xa;─────────────────────&#xa;• Streams — chat log per chatID&#xa;  (XADD / XREAD, consumer groups)&#xa;• Channel Layer — WS fan-out across pods&#xa;• Celery Broker — async task queue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="677" y="310" width="300" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- PostgreSQL -->
+        <mxCell id="postgres" value="🐘 PostgreSQL&#xa;─────────────────────&#xa;• Organisation (name, status, owner)&#xa;• User (org FK, role)&#xa;• AccessGroup (org FK, members)&#xa;• Chat (UUID, org_a, org_b)&#xa;• ChatParticipant (chat FK, user FK)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="1027" y="310" width="300" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Celery Workers -->
+        <mxCell id="celery" value="⚙️ Celery Worker Pods&#xa;─────────────────────&#xa;• Email on org approval&#xa;• Notifications on chat creation&#xa;• Default access group assignment&#xa;• All async side-effects from signals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="327" y="530" width="300" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- Auth Flow -->
+        <mxCell id="auth" value="🔐 Auth &amp; Tenant Flow&#xa;─────────────────────&#xa;• Org registers → status: pending&#xa;• App admin approves → approved&#xa;• Org owner creates users (no admin)&#xa;• Owner assigns users → AccessGroup&#xa;• JWT scoped per org / user&#xa;• Cross-tenant: org_a + org_b users" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="677" y="530" width="300" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Pytest -->
+        <mxCell id="pytest" value="🧪 Testing (pytest)&#xa;─────────────────────&#xa;• pytest-django — models, views, signals&#xa;• pytest-asyncio — async consumers&#xa;• channels.testing — WebSocket client&#xa;• factory_boy — test data factories&#xa;• Separate test DB (auto-managed)&#xa;• Real Redis for integration tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="1027" y="530" width="300" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: Django ↔ Redis ↔ Postgres -->
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="django" target="redis" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="django" target="postgres" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="django" target="celery" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="celery" target="redis" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- REALTIME MESSAGE FLOW -->
+        <!-- ═══════════════════════════════════════ -->
+        <mxCell id="flow-bg" value="💬 Realtime Message Flow" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="107" y="740" width="1440" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="f1" value="User A&#xa;(WebSocket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="flow-bg">
+          <mxGeometry x="20" y="35" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="Django Channels&#xa;WS Consumer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="flow-bg">
+          <mxGeometry x="190" y="35" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="Redis Stream&#xa;XADD chat:{id}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="flow-bg">
+          <mxGeometry x="390" y="35" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="Channel Layer&#xa;Redis pub/sub" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="flow-bg">
+          <mxGeometry x="590" y="35" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" value="Django Channels&#xa;broadcast" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="flow-bg">
+          <mxGeometry x="790" y="35" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" value="User B&#xa;(WebSocket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="flow-bg">
+          <mxGeometry x="990" y="35" width="110" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe1" style="" edge="1" source="f1" target="f2" parent="flow-bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe2" style="" edge="1" source="f2" target="f3" parent="flow-bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe3" style="" edge="1" source="f3" target="f4" parent="flow-bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe4" style="" edge="1" source="f4" target="f5" parent="flow-bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="fe5" style="" edge="1" source="f5" target="f6" parent="flow-bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- ENVIRONMENTS -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Local Dev -->
+        <mxCell id="local-bg" value="🖥️ Local Dev — Minikube / Kind (Kubernetes)" style="swimlane;startSize=30;fillColor=#f0f0f0;strokeColor=#aaaaaa;dashed=1;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="107" y="870" width="680" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="lj" value="Jenkins&#xa;CI/CD pipeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="local-bg">
+          <mxGeometry x="20" y="50" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ld" value="Django Pod ×2–3&#xa;ASGI + Channels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="local-bg">
+          <mxGeometry x="160" y="50" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lc" value="Celery Pod&#xa;async workers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="local-bg">
+          <mxGeometry x="300" y="50" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lr" value="Redis Pod&#xa;Streams + broker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="local-bg">
+          <mxGeometry x="440" y="50" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lp" value="PostgreSQL Pod&#xa;StatefulSet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="local-bg">
+          <mxGeometry x="20" y="120" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lpt" value="pytest&#xa;in Django container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="local-bg">
+          <mxGeometry x="160" y="120" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lpipe" value="Pipeline: build image → apply manifests → run pytest" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontColor=#666666;" vertex="1" parent="local-bg">
+          <mxGeometry x="20" y="175" width="640" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Prod AWS -->
+        <mxCell id="prod-bg" value="☁️ Prod — AWS" style="swimlane;startSize=30;fillColor=#f0f0f0;strokeColor=#aaaaaa;dashed=1;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="827" y="870" width="720" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="peks" value="EKS&#xa;K8s cluster" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="prod-bg">
+          <mxGeometry x="20" y="50" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="palb" value="ALB Ingress&#xa;HTTP + WebSocket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="prod-bg">
+          <mxGeometry x="160" y="50" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="pd" value="Django Pod ×N&#xa;same image as local" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="prod-bg">
+          <mxGeometry x="310" y="50" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="pc" value="Celery Pod&#xa;async workers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="prod-bg">
+          <mxGeometry x="460" y="50" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="pe" value="ElastiCache&#xa;managed Redis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="prod-bg">
+          <mxGeometry x="20" y="120" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="prds" value="RDS&#xa;managed PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="prod-bg">
+          <mxGeometry x="160" y="120" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="pnote" value="Same K8s manifests as local — env swapped via ConfigMaps / Secrets" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontColor=#666666;" vertex="1" parent="prod-bg">
+          <mxGeometry x="20" y="175" width="680" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

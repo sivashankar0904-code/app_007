@@ -1,0 +1,10 @@
+[project]
+name = "app-007"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "line-profiler>=5.0.2",
+    "memory-profiler>=0.61.0",
+]

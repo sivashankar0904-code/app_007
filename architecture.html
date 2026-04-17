@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multi-Tenant Realtime Chat — Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 30px; }
+  h1 { text-align: center; font-size: 18px; color: #94a3b8; margin-bottom: 30px; letter-spacing: 1px; text-transform: uppercase; }
+
+  .diagram { display: flex; flex-direction: column; gap: 20px; max-width: 1100px; margin: 0 auto; }
+
+  /* ---- CLIENTS ---- */
+  .clients { display: flex; justify-content: center; gap: 30px; }
+  .client-box {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 12px 24px; text-align: center; font-size: 13px; color: #93c5fd;
+  }
+  .client-box .icon { font-size: 22px; display: block; margin-bottom: 4px; }
+
+  /* ---- ARROW ---- */
+  .arrow-row { display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 11px; color: #64748b; }
+  .arrow-row .line { width: 2px; height: 28px; background: #334155; margin: 0 auto; }
+  .arrow-label { font-size: 10px; color: #64748b; text-align: center; }
+
+  /* ---- SECTION WRAPPER ---- */
+  .section-label {
+    font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 6px; padding-left: 4px;
+  }
+
+  /* ---- INGRESS ---- */
+  .ingress-row { display: flex; justify-content: center; }
+  .ingress-box {
+    background: #1e293b; border: 2px solid #6366f1; border-radius: 10px;
+    padding: 10px 40px; text-align: center; font-size: 13px; color: #a5b4fc; min-width: 280px;
+  }
+
+  /* ---- MAIN GRID ---- */
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* ---- BOXES ---- */
+  .box {
+    border-radius: 10px; padding: 14px; font-size: 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .box .title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .box .tag {
+    display: inline-block; font-size: 10px; padding: 2px 8px;
+    border-radius: 20px; margin-right: 4px; margin-bottom: 2px;
+  }
+  .box ul { padding-left: 14px; }
+  .box ul li { margin-bottom: 3px; color: #94a3b8; font-size: 11px; }
+
+  /* Colors */
+  .blue   { background: #0f172a; border: 1px solid #3b82f6; }
+  .blue .title { color: #60a5fa; }
+  .green  { background: #0f172a; border: 1px solid #22c55e; }
+  .green .title { color: #4ade80; }
+  .red    { background: #0f172a; border: 1px solid #ef4444; }
+  .red .title { color: #f87171; }
+  .purple { background: #0f172a; border: 1px solid #a855f7; }
+  .purple .title { color: #c084fc; }
+  .orange { background: #0f172a; border: 1px solid #f97316; }
+  .orange .title { color: #fb923c; }
+  .teal   { background: #0f172a; border: 1px solid #14b8a6; }
+  .teal .title { color: #2dd4bf; }
+  .yellow { background: #0f172a; border: 1px solid #eab308; }
+  .yellow .title { color: #facc15; }
+
+  .tag-blue   { background: #1e3a5f; color: #93c5fd; }
+  .tag-green  { background: #14532d; color: #86efac; }
+  .tag-red    { background: #450a0a; color: #fca5a5; }
+  .tag-purple { background: #3b0764; color: #d8b4fe; }
+  .tag-orange { background: #431407; color: #fdba74; }
+
+  /* ---- BOTTOM ROW ---- */
+  .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* ---- ENV PANELS ---- */
+  .env-panel {
+    border-radius: 12px; padding: 16px;
+    border: 1px dashed #334155;
+  }
+  .env-panel .env-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: #64748b; margin-bottom: 10px;
+  }
+  .env-panel .env-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: #1e293b; border-radius: 6px; padding: 6px 12px;
+    font-size: 11px; border: 1px solid #334155;
+  }
+  .chip .chip-title { font-weight: 600; color: #e2e8f0; font-size: 11px; }
+  .chip .chip-sub { color: #64748b; font-size: 10px; }
+
+  /* ---- FLOW SECTION ---- */
+  .flow-row {
+    display: flex; justify-content: center; align-items: center;
+    gap: 0; flex-wrap: nowrap; overflow-x: auto; padding: 10px 0;
+  }
+  .flow-node {
+    background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+    padding: 8px 14px; font-size: 11px; text-align: center; white-space: nowrap;
+    min-width: 90px;
+  }
+  .flow-node .fn { color: #94a3b8; font-size: 10px; margin-top: 2px; }
+  .flow-arrow { color: #475569; font-size: 18px; padding: 0 6px; flex-shrink: 0; }
+
+  /* ---- DIVIDER ---- */
+  .divider { border: none; border-top: 1px solid #1e293b; margin: 4px 0; }
+
+  .center { text-align: center; }
+  .small { font-size: 10px; color: #64748b; }
+</style>
+</head>
+<body>
+
+<h1>Multi-Tenant Realtime Chat — Architecture</h1>
+
+<div class="diagram">
+
+  <!-- CLIENTS -->
+  <div class="clients">
+    <div class="client-box"><span class="icon">🌐</span>Browser<br><span class="small">WebSocket + REST</span></div>
+    <div class="client-box"><span class="icon">📱</span>Mobile<br><span class="small">WebSocket + REST</span></div>
+  </div>
+
+  <!-- Arrow -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div class="line" style="width:2px;height:20px;background:#334155;"></div>
+    <span class="small">JWT Auth &nbsp;|&nbsp; WS + HTTPS</span>
+    <div class="line" style="width:2px;height:20px;background:#334155;"></div>
+  </div>
+
+  <!-- INGRESS -->
+  <div class="ingress-row">
+    <div class="ingress-box">
+      🔀 &nbsp;<strong>ALB Ingress Controller</strong>
+      <div class="small" style="margin-top:4px">Routes HTTP → REST &nbsp;|&nbsp; WS → Django Channels</div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div style="display:flex;flex-direction:column;align-items:center;">
+    <div style="width:2px;height:20px;background:#334155;"></div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- Django App Pods -->
+    <div class="box blue">
+      <div class="title">🐍 Django App Pods (2–3)</div>
+      <hr class="divider">
+      <ul>
+        <li>ASGI via Daphne / Uvicorn</li>
+        <li>REST API (DRF) — Org, Users, Chat</li>
+        <li>Django Channels — WebSocket consumers</li>
+        <li>JWT auth (djangorestframework-simplejwt)</li>
+        <li>Django Signals → Celery tasks</li>
+      </ul>
+      <div style="margin-top:4px;">
+        <span class="tag tag-blue">stateless</span>
+        <span class="tag tag-blue">horizontally scalable</span>
+      </div>
+    </div>
+
+    <!-- Redis -->
+    <div class="box red">
+      <div class="title">🔴 Redis</div>
+      <hr class="divider">
+      <ul>
+        <li><strong>Streams</strong> — chat message log per chatID</li>
+        <li><strong>Channel Layer</strong> — WS fan-out across pods</li>
+        <li><strong>Celery Broker</strong> — async task queue</li>
+      </ul>
+      <div style="margin-top:4px;">
+        <span class="tag tag-red">stream key: chat:{chatID}</span>
+      </div>
+      <ul style="margin-top:6px;">
+        <li>Consumer groups for replay/history</li>
+        <li>Single Redis instance serves all 3 roles</li>
+      </ul>
+    </div>
+
+    <!-- PostgreSQL -->
+    <div class="box green">
+      <div class="title">🐘 PostgreSQL</div>
+      <hr class="divider">
+      <ul>
+        <li><strong>Organisation</strong> — name, status, owner</li>
+        <li><strong>User</strong> — org FK, role</li>
+        <li><strong>AccessGroup</strong> — org FK, members</li>
+        <li><strong>Chat</strong> — UUID, org_a, org_b</li>
+        <li><strong>ChatParticipant</strong> — chat FK, user FK</li>
+      </ul>
+      <div style="margin-top:4px;">
+        <span class="tag tag-green">persistent store</span>
+      </div>
+    </div>
+
+    <!-- Celery Workers -->
+    <div class="box purple">
+      <div class="title">⚙️ Celery Worker Pods</div>
+      <hr class="divider">
+      <ul>
+        <li>Email on org approval</li>
+        <li>Notifications on chat creation</li>
+        <li>Default access group assignment</li>
+        <li>Any async side-effect from signals</li>
+      </ul>
+      <div style="margin-top:4px;">
+        <span class="tag tag-purple">Redis broker</span>
+        <span class="tag tag-purple">retryable</span>
+      </div>
+    </div>
+
+    <!-- Auth Flow -->
+    <div class="box teal">
+      <div class="title">🔐 Auth & Tenant Flow</div>
+      <hr class="divider">
+      <ul>
+        <li>Org registers → status: <em>pending</em></li>
+        <li>App admin approves → status: <em>approved</em></li>
+        <li>Org owner creates users (no admin needed)</li>
+        <li>Owner assigns users → AccessGroup</li>
+        <li>JWT issued per user, scoped to org</li>
+        <li>Cross-tenant chat: org_a + org_b users</li>
+      </ul>
+    </div>
+
+    <!-- Testing -->
+    <div class="box yellow">
+      <div class="title">🧪 Testing (pytest)</div>
+      <hr class="divider">
+      <ul>
+        <li><strong>pytest-django</strong> — models, views, signals</li>
+        <li><strong>pytest-asyncio</strong> — async consumers</li>
+        <li><strong>channels.testing</strong> — WebSocket client</li>
+        <li><strong>factory_boy</strong> — test data</li>
+        <li>Separate test DB (auto by pytest-django)</li>
+        <li>Real Redis for integration tests</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- MESSAGE FLOW -->
+  <div>
+    <div class="section-label">💬 Realtime Message Flow</div>
+    <div class="flow-row">
+      <div class="flow-node">User A<br><span class="fn">WebSocket</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">Django Channels<br><span class="fn">WS Consumer</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">Redis Stream<br><span class="fn">XADD chat:{id}</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">Channel Layer<br><span class="fn">Redis pub/sub</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">Django Channels<br><span class="fn">broadcast</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">User B<br><span class="fn">WebSocket</span></div>
+    </div>
+  </div>
+
+  <!-- ENVIRONMENTS -->
+  <div class="bottom-row">
+
+    <!-- Local Dev -->
+    <div class="env-panel">
+      <div class="env-title">🖥️ Local Dev — Minikube / Kind (K8s)</div>
+      <div class="env-grid">
+        <div class="chip"><div class="chip-title">Jenkins</div><div class="chip-sub">CI/CD pipeline</div></div>
+        <div class="chip"><div class="chip-title">Django Pod ×2–3</div><div class="chip-sub">ASGI + Channels</div></div>
+        <div class="chip"><div class="chip-title">Celery Pod</div><div class="chip-sub">async workers</div></div>
+        <div class="chip"><div class="chip-title">Redis Pod</div><div class="chip-sub">Streams + broker</div></div>
+        <div class="chip"><div class="chip-title">PostgreSQL Pod</div><div class="chip-sub">StatefulSet</div></div>
+        <div class="chip"><div class="chip-title">pytest</div><div class="chip-sub">in Django container</div></div>
+      </div>
+      <div class="small" style="margin-top:10px;">Jenkins → build Docker image → apply K8s manifests → run pytest → done</div>
+    </div>
+
+    <!-- Prod AWS -->
+    <div class="env-panel">
+      <div class="env-title">☁️ Prod — AWS</div>
+      <div class="env-grid">
+        <div class="chip"><div class="chip-title">EKS</div><div class="chip-sub">K8s cluster</div></div>
+        <div class="chip"><div class="chip-title">ALB Ingress</div><div class="chip-sub">HTTP + WebSocket</div></div>
+        <div class="chip"><div class="chip-title">Django Pod ×N</div><div class="chip-sub">same image as local</div></div>
+        <div class="chip"><div class="chip-title">Celery Pod</div><div class="chip-sub">async workers</div></div>
+        <div class="chip"><div class="chip-title">ElastiCache</div><div class="chip-sub">managed Redis</div></div>
+        <div class="chip"><div class="chip-title">RDS</div><div class="chip-sub">managed PostgreSQL</div></div>
+      </div>
+      <div class="small" style="margin-top:10px;">Same K8s manifests — env swapped via ConfigMaps / Secrets</div>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
