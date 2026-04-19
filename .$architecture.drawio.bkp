@@ -67,8 +67,15 @@
         <mxCell id="e5" edge="1" parent="1" source="django" style="edgeStyle=orthogonalEdgeStyle;" target="postgres">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" edge="1" parent="1" source="celery" style="edgeStyle=orthogonalEdgeStyle;" target="redis">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e6" edge="1" parent="1" source="celery" style="edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="redis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="592" y="450" />
+              <mxPoint x="430" y="450" />
+              <mxPoint x="430" y="553" />
+              <mxPoint x="282" y="553" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="e7" edge="1" parent="1" source="fastapi" style="edgeStyle=orthogonalEdgeStyle;" target="redis">
           <mxGeometry relative="1" as="geometry" />
@@ -79,8 +86,14 @@
         <mxCell id="stream-arrow" edge="1" parent="1" source="signals" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;fontColor=#b85450;fontSize=10;" target="fastapi" value="Redis Stream&#xa;ai:events">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="stream-back" edge="1" parent="1" source="fastapi" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9c27b0;fontColor=#9c27b0;fontSize=10;" target="django" value="bot message&#xa;back to chat">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="stream-back" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9c27b0;fontColor=#9c27b0;fontSize=10;" target="django" value="bot message&#xa;back to chat">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="750" y="460" />
+              <mxPoint x="750" y="460" />
+            </Array>
+            <mxPoint x="840" y="400" as="sourcePoint" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="thread-bg" parent="1" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1;" value="💬 Collaborative AI Thread — Realtime Flow" vertex="1">
           <mxGeometry height="130" width="1100" x="107" y="860" as="geometry" />
