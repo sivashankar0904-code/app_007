@@ -24,9 +24,14 @@ def get_engine():
         settings = get_settings()
         _engine = create_async_engine(
             settings.database_url,
-            echo=False,       # set True to log SQL — useful for debugging
-            pool_size=5,      # max persistent connections
-            max_overflow=10,  # extra connections under burst load
+            echo=False,          # set True to log SQL — useful for debugging
+            pool_size=5,         # max persistent connections
+            max_overflow=10,     # extra connections under burst load
+            pool_pre_ping=True,  # WHY: sends SELECT 1 before reusing a pooled
+                                 # connection. If the connection is stale (server
+                                 # restarted, idle timeout, container restart),
+                                 # SQLAlchemy reconnects automatically instead of
+                                 # crashing with "connection is closed".
         )
     return _engine
 

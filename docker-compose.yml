@@ -2,14 +2,15 @@
 # app_007 — Local Development docker-compose
 #
 # Services:
-#   postgres  — PostgreSQL 16 + pgvector (vector storage)
-#   redis     — Redis 7 (channel layer + celery broker + Redis Streams)
-#   core-api  — Django + Channels (HTTP + WebSocket)
-#   celery    — Celery worker (async tasks, same Django codebase)
+#   postgres   — PostgreSQL 16 + pgvector (vector storage)
+#   redis      — Redis 7 (channel layer + celery broker + Redis Streams)
+#   core-api   — Django + Channels (HTTP + WebSocket)
+#   celery     — Celery worker (async tasks, same Django codebase)
 #   ai-service — FastAPI (LLM, RAG, agentic workflows)
+#   frontend   — Vite + React dev server (proxies /api + /ws to core-api)
 #
 # Startup order:
-#   postgres → redis → core-api + celery → ai-service
+#   postgres → redis → core-api + celery → ai-service → frontend
 ###############################################################################
 
 services:
@@ -115,6 +116,22 @@ services:
     volumes:
       - ./services/fastapi_app:/app  # live reload in dev
       - media_data:/media            # reads files Django uploaded here
+
+  # ── Frontend — Vite + React dev server ────────────────────────────────────
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: app007-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - core-api
+    volumes:
+      - ./services/frontend:/app        # HMR — edits reflect instantly
+      - /app/node_modules               # WHY anonymous volume: keeps container's
+                                        # node_modules separate from host mount.
+                                        # Host may have different OS/arch binaries.
 
 volumes:
   postgres_data:
