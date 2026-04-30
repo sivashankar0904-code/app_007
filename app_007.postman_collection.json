@@ -1,0 +1,234 @@
+{
+  "info": {
+    "name": "app_007 — Multi-Tenant Chat",
+    "description": "Two services:\n- core-api (Django) → http://localhost:8000\n- ai-service (FastAPI) → http://localhost:8001\n\nWorkflow:\n1. Run Login → tokens auto-saved\n2. All requests use Bearer {{access_token}}\n\nWebSocket (manual): New → WebSocket → ws://localhost:8000/ws/chat/1/",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "core_api",      "value": "http://localhost:8000", "type": "string" },
+    { "key": "ai_service",    "value": "http://localhost:8001",  "type": "string" },
+    { "key": "access_token",  "value": "", "type": "string" },
+    { "key": "refresh_token", "value": "", "type": "string" },
+    { "key": "user_id",       "value": "", "type": "string" },
+    { "key": "chat_id",       "value": "1", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "core-api (Django)",
+      "item": [
+        {
+          "name": "Health",
+          "item": [
+            {
+              "name": "Health Check",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{core_api}}/health/", "host": ["{{core_api}}"], "path": ["health",""] },
+                "description": "Checks PostgreSQL + Redis. Returns 200 or 503."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Login",
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const j=pm.response.json();if(j.tokens){pm.collectionVariables.set('access_token',j.tokens.access);pm.collectionVariables.set('refresh_token',j.tokens.refresh);pm.collectionVariables.set('user_id',String(j.user.id));console.log('tokens saved');}"] } }],
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"yourpassword\"\n}" },
+                "url": { "raw": "{{core_api}}/api/users/login/", "host": ["{{core_api}}"], "path": ["api","users","login",""] },
+                "description": "Auto-saves access_token, refresh_token, user_id on success."
+              },
+              "response": []
+            },
+            {
+              "name": "Register User",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"username\": \"john\",\n  \"email\": \"john@example.com\",\n  \"password\": \"Secure123!\",\n  \"role\": \"member\"\n}" },
+                "url": { "raw": "{{core_api}}/api/users/register/", "host": ["{{core_api}}"], "path": ["api","users","register",""] }
+              },
+              "response": []
+            },
+            {
+              "name": "Refresh Token",
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const j=pm.response.json();if(j.access){pm.collectionVariables.set('access_token',j.access);}"] } }],
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}" },
+                "url": { "raw": "{{core_api}}/api/users/token/refresh/", "host": ["{{core_api}}"], "path": ["api","users","token","refresh",""] }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "My Profile",
+              "request": { "method": "GET", "header": [], "url": { "raw": "{{core_api}}/api/users/me/", "host": ["{{core_api}}"], "path": ["api","users","me",""] } },
+              "response": []
+            },
+            {
+              "name": "List Users (org)",
+              "request": { "method": "GET", "header": [], "url": { "raw": "{{core_api}}/api/users/", "host": ["{{core_api}}"], "path": ["api","users",""] }, "description": "Admin/Owner only. Org-scoped." },
+              "response": []
+            },
+            {
+              "name": "Get User",
+              "request": { "method": "GET", "header": [], "url": { "raw": "{{core_api}}/api/users/{{user_id}}/", "host": ["{{core_api}}"], "path": ["api","users","{{user_id}}",""] } },
+              "response": []
+            },
+            {
+              "name": "Update User (role / active)",
+              "request": {
+                "method": "PATCH",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"role\": \"admin\",\n  \"is_active\": true\n}" },
+                "url": { "raw": "{{core_api}}/api/users/{{user_id}}/", "host": ["{{core_api}}"], "path": ["api","users","{{user_id}}",""] }
+              },
+              "response": []
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"old_password\": \"OldPass123!\",\n  \"new_password\": \"NewPass456!\"\n}" },
+                "url": { "raw": "{{core_api}}/api/users/{{user_id}}/change-password/", "host": ["{{core_api}}"], "path": ["api","users","{{user_id}}","change-password",""] }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Chat",
+          "item": [
+            {
+              "name": "List Chats",
+              "request": { "method": "GET", "header": [], "url": { "raw": "{{core_api}}/api/chat/", "host": ["{{core_api}}"], "path": ["api","chat",""] }, "description": "Placeholder." },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Documents",
+          "item": [
+            {
+              "name": "Upload Document",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file" }, { "key": "chat_id", "type": "text", "value": "{{chat_id}}" }] },
+                "url": { "raw": "{{core_api}}/api/documents/", "host": ["{{core_api}}"], "path": ["api","documents",""] }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "WebSocket Chat — Instructions",
+          "item": [
+            {
+              "name": "READ — How to test WebSocket",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{core_api}}/health/", "host": ["{{core_api}}"], "path": ["health",""] },
+                "description": "WebSocket tabs must be created MANUALLY in Postman.\nCollection import does not support ws:// protocol.\n\nSTEPS:\n1. New → WebSocket\n   URL: ws://localhost:8000/ws/chat/1/\n   Connect  ← User A\n\n2. File → New Window → New → WebSocket\n   URL: ws://localhost:8000/ws/chat/1/\n   Connect  ← User B\n\n3. User A sends:  {\"message\": \"hello from A\"}\n4. User B receives it instantly\n5. User B replies: {\"message\": \"hello back\"}\n\nRoom isolation test:\n  User A → ws://localhost:8000/ws/chat/1/\n  User B → ws://localhost:8000/ws/chat/2/\n  They cannot see each other."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ai-service (FastAPI)",
+      "item": [
+        {
+          "name": "Health",
+          "item": [
+            {
+              "name": "Health Check",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{ai_service}}/health", "host": ["{{ai_service}}"], "path": ["health"] }
+              },
+              "response": []
+            },
+            {
+              "name": "Swagger Docs",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{ai_service}}/docs", "host": ["{{ai_service}}"], "path": ["docs"] },
+                "description": "Open in browser: http://localhost:8001/docs"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Agents",
+          "item": [
+            {
+              "name": "Run Agent",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"event_type\": \"document.uploaded\",\n  \"doc_id\": 1,\n  \"chat_id\": 1,\n  \"org_id\": 1\n}" },
+                "url": { "raw": "{{ai_service}}/agents/run", "host": ["{{ai_service}}"], "path": ["agents","run"] }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "RAG",
+          "item": [
+            {
+              "name": "Ingest Document",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"doc_id\": 1,\n  \"org_id\": 1,\n  \"file_path\": \"/media/documents/sample.pdf\"\n}" },
+                "url": { "raw": "{{ai_service}}/rag/ingest", "host": ["{{ai_service}}"], "path": ["rag","ingest"] }
+              },
+              "response": []
+            },
+            {
+              "name": "Query (RAG)",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"question\": \"What are the key dates in this contract?\",\n  \"doc_id\": 1,\n  \"org_id\": 1\n}" },
+                "url": { "raw": "{{ai_service}}/rag/query", "host": ["{{ai_service}}"], "path": ["rag","query"] }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

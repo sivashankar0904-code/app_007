@@ -1,0 +1,121 @@
+###############################################################################
+# app_007 — Local Development docker-compose
+#
+# Services:
+#   postgres  — PostgreSQL 16 + pgvector (vector storage)
+#   redis     — Redis 7 (channel layer + celery broker + Redis Streams)
+#   core-api  — Django + Channels (HTTP + WebSocket)
+#   celery    — Celery worker (async tasks, same Django codebase)
+#   ai-service — FastAPI (LLM, RAG, agentic workflows)
+#
+# Startup order:
+#   postgres → redis → core-api + celery → ai-service
+###############################################################################
+
+services:
+
+  # ── Postgres + pgvector ────────────────────────────────────────────────────
+  postgres:
+    build:
+      context: ./infra/docker/postgres
+      dockerfile: Dockerfile
+    container_name: app007-postgres
+    environment:
+      POSTGRES_DB: app007
+      POSTGRES_USER: app007
+      POSTGRES_PASSWORD: app007pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app007 -d app007"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: app007-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Django core-api ────────────────────────────────────────────────────────
+  core-api:
+    build:
+      context: ./services/django_app
+      dockerfile: Dockerfile
+    container_name: app007-core-api
+    env_file:
+      - ./services/django_app/.env
+    environment:
+      DATABASE_URL: postgres://app007:app007pass@postgres:5432/app007
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/django_app:/app  # live reload in dev
+      - media_data:/media           # shared uploads volume (read by ai-service)
+    command: >
+      sh -c "/opt/venv/bin/python manage.py migrate --noinput &&
+             /opt/venv/bin/daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+
+  # ── Celery worker ──────────────────────────────────────────────────────────
+  # Same image as core-api — different entrypoint
+  celery:
+    build:
+      context: ./services/django_app
+      dockerfile: Dockerfile
+    container_name: app007-celery
+    env_file:
+      - ./services/django_app/.env
+    environment:
+      DATABASE_URL: postgres://app007:app007pass@postgres:5432/app007
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/django_app:/app
+      - media_data:/media           # needs read access for any future media tasks
+    command: /opt/venv/bin/celery -A config.celery worker --loglevel=info
+
+  # ── FastAPI ai-service ─────────────────────────────────────────────────────
+  ai-service:
+    build:
+      context: ./services/fastapi_app
+      dockerfile: Dockerfile
+    container_name: app007-ai-service
+    env_file:
+      - ./services/fastapi_app/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://app007:app007pass@postgres:5432/app007
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/fastapi_app:/app  # live reload in dev
+      - media_data:/media            # reads files Django uploaded here
+
+volumes:
+  postgres_data:
+  media_data:   # shared between core-api (writes) and ai-service (reads)

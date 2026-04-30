@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 CLAUDE.md
+
+# Secrets — never commit real .env files
+.env
+*.env
+add -A.env.example

@@ -1,0 +1,35 @@
+# Web
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# AI
+langchain==0.3.14
+langchain-huggingface==0.1.2
+langchain-text-splitters==0.3.8
+huggingface_hub==0.27.0
+# Embeddings — run locally (all-MiniLM-L6-v2 is ~90MB, not 14GB)
+# WHY local: HF free serverless API only allows selected models; this one returns 404.
+# WHY not sentence-transformers API: same issue. Local is more reliable + zero latency.
+sentence-transformers==3.3.1
+# Required by HuggingFace tokenizers / transformers pipeline internals
+protobuf==5.29.3
+# Mistral tokenizer uses SentencePiece under the hood
+sentencepiece==0.2.0
+
+# Document parsing
+pypdf==5.1.0
+
+# Redis (for Stream consumer)
+redis==5.2.1
+
+# Database / pgvector
+asyncpg==0.30.0
+sqlalchemy==2.0.36
+pgvector==0.3.6
+
+# HTTP client
+httpx==0.28.1
+
+# Config
+python-dotenv==1.0.1
+pydantic-settings==2.7.0

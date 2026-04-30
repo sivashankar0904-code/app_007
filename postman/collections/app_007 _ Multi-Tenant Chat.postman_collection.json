@@ -1,0 +1,691 @@
+{
+  "info": {
+    "_postman_id": "6e5452a8-dc01-42fa-b743-77c1882158be",
+    "name": "app_007 — Multi-Tenant Chat",
+    "description": "Two services:\n- core-api (Django) → http://localhost:8000\n- ai-service (FastAPI) → http://localhost:8001\n\nWorkflow:\n1. Run Login → tokens auto-saved\n2. All requests use Bearer {{access_token}}\n\nWebSocket (manual): New → WebSocket → ws://localhost:8000/ws/chat/1/",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "core-api (Django)",
+      "item": [
+        {
+          "name": "Health",
+          "item": [
+            {
+              "name": "Health Check",
+              "id": "7f9ad85e-9e87-4d71-96b1-66aa5bd11c58",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{core_api}}/health/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "health",
+                    ""
+                  ]
+                },
+                "description": "Checks PostgreSQL + Redis. Returns 200 or 503."
+              },
+              "response": []
+            }
+          ],
+          "id": "3e302b50-2531-4a88-ad73-6c14ac9911b5"
+        },
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Login",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const j=pm.response.json();if(j.tokens){pm.collectionVariables.set('access_token',j.tokens.access);pm.collectionVariables.set('refresh_token',j.tokens.refresh);pm.collectionVariables.set('user_id',String(j.user.id));console.log('tokens saved');}"
+                    ],
+                    "id": "ed9eba30-c295-4a4e-a80b-4736a77932a3"
+                  }
+                }
+              ],
+              "id": "d9d196b7-f7d5-46d7-97d6-b6bcf7c24807",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"yourpassword\"\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/login/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "login",
+                    ""
+                  ]
+                },
+                "description": "Auto-saves access_token, refresh_token, user_id on success."
+              },
+              "response": []
+            },
+            {
+              "name": "Register User",
+              "id": "c73f9412-6976-4134-9fa7-d2b21f71044f",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"john\",\n  \"email\": \"john@example.com\",\n  \"password\": \"Secure123!\",\n  \"role\": \"member\"\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/register/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "register",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Refresh Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const j=pm.response.json();if(j.access){pm.collectionVariables.set('access_token',j.access);}"
+                    ],
+                    "id": "33878773-4b47-49c7-bae3-69f9e277ee48"
+                  }
+                }
+              ],
+              "id": "c58b417b-9c3d-408b-ad54-782bb8469b63",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/token/refresh/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "token",
+                    "refresh",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Login Copy",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const j=pm.response.json();if(j.tokens){pm.collectionVariables.set('access_token',j.tokens.access);pm.collectionVariables.set('refresh_token',j.tokens.refresh);pm.collectionVariables.set('user_id',String(j.user.id));console.log('tokens saved');}"
+                    ],
+                    "id": "ed9eba30-c295-4a4e-a80b-4736a77932a3"
+                  }
+                }
+              ],
+              "id": "8e2109b9-b9aa-42fe-8dbf-d2ebf720ee2f",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"yourpassword\"\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/login/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "login",
+                    ""
+                  ]
+                },
+                "description": "Auto-saves access_token, refresh_token, user_id on success."
+              },
+              "response": []
+            },
+            {
+              "name": "Login Copy",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const j=pm.response.json();if(j.tokens){pm.collectionVariables.set('access_token',j.tokens.access);pm.collectionVariables.set('refresh_token',j.tokens.refresh);pm.collectionVariables.set('user_id',String(j.user.id));console.log('tokens saved');}"
+                    ],
+                    "id": "ed9eba30-c295-4a4e-a80b-4736a77932a3"
+                  }
+                }
+              ],
+              "id": "2140706f-3261-49f9-8168-d59b6a181e50",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"yourpassword\"\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/login/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "login",
+                    ""
+                  ]
+                },
+                "description": "Auto-saves access_token, refresh_token, user_id on success."
+              },
+              "response": []
+            }
+          ],
+          "id": "88a6eb1b-1443-4d80-825e-1443bb74a95b"
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "My Profile",
+              "id": "ef15935f-5839-4922-9718-4db6300e925f",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{core_api}}/api/users/me/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "me",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Users (org)",
+              "id": "f6249df1-5d1c-4c20-8621-ed095ea7b9a8",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{core_api}}/api/users/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    ""
+                  ]
+                },
+                "description": "Admin/Owner only. Org-scoped."
+              },
+              "response": []
+            },
+            {
+              "name": "Get User",
+              "id": "6d908663-d4c8-4333-8c6a-396aab7291b9",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{core_api}}/api/users/{{user_id}}/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "{{user_id}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update User (role / active)",
+              "id": "5db41b65-3af8-485f-b91d-67e527ee6f9a",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"admin\",\n  \"is_active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/{{user_id}}/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "{{user_id}}",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Change Password",
+              "id": "4e9a26aa-7f75-4a9e-8db5-f4e1c3427a12",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"old_password\": \"OldPass123!\",\n  \"new_password\": \"NewPass456!\"\n}"
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/users/{{user_id}}/change-password/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "{{user_id}}",
+                    "change-password",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "id": "df4204c9-6937-4c26-871c-28d6cf1c092e"
+        },
+        {
+          "name": "Chat",
+          "item": [
+            {
+              "name": "List Chats",
+              "id": "aba91640-17f8-4628-85df-37adecacde08",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{core_api}}/api/chat/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "chat",
+                    ""
+                  ]
+                },
+                "description": "Placeholder."
+              },
+              "response": []
+            }
+          ],
+          "id": "353af3d9-586e-446b-8d37-b80d48a2a771"
+        },
+        {
+          "name": "Documents",
+          "item": [
+            {
+              "name": "Upload Document",
+              "id": "755e8015-2884-422a-bcc6-a4c56e6e6c0e",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": []
+                    },
+                    {
+                      "key": "chat_id",
+                      "type": "text",
+                      "value": "{{chat_id}}"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{core_api}}/api/documents/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "api",
+                    "documents",
+                    ""
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "id": "54b365e9-e3bc-4c39-bfb3-9e0e25bea501"
+        },
+        {
+          "name": "WebSocket Chat — Instructions",
+          "item": [
+            {
+              "name": "READ — How to test WebSocket",
+              "id": "fc8e7396-6322-42d5-af5a-6c50bef45485",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{core_api}}/health/",
+                  "host": [
+                    "{{core_api}}"
+                  ],
+                  "path": [
+                    "health",
+                    ""
+                  ]
+                },
+                "description": "WebSocket tabs must be created MANUALLY in Postman.\nCollection import does not support ws:// protocol.\n\nSTEPS:\n1. New → WebSocket\n   URL: ws://localhost:8000/ws/chat/1/\n   Connect  ← User A\n\n2. File → New Window → New → WebSocket\n   URL: ws://localhost:8000/ws/chat/1/\n   Connect  ← User B\n\n3. User A sends:  {\"message\": \"hello from A\"}\n4. User B receives it instantly\n5. User B replies: {\"message\": \"hello back\"}\n\nRoom isolation test:\n  User A → ws://localhost:8000/ws/chat/1/\n  User B → ws://localhost:8000/ws/chat/2/\n  They cannot see each other."
+              },
+              "response": []
+            }
+          ],
+          "id": "193c8c49-f1f5-4ae8-9550-5c91289504ed"
+        }
+      ],
+      "id": "0618a52b-cda9-4732-b4b5-d378d0f36876"
+    },
+    {
+      "name": "ai-service (FastAPI)",
+      "item": [
+        {
+          "name": "Health",
+          "item": [
+            {
+              "name": "Health Check",
+              "id": "54a720d8-3e56-4266-bd26-5e9c05bfe2e4",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{ai_service}}/health",
+                  "host": [
+                    "{{ai_service}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Swagger Docs",
+              "id": "0002dd37-d463-469a-8b74-bcd5bfc6a1ed",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{ai_service}}/docs",
+                  "host": [
+                    "{{ai_service}}"
+                  ],
+                  "path": [
+                    "docs"
+                  ]
+                },
+                "description": "Open in browser: http://localhost:8001/docs"
+              },
+              "response": []
+            }
+          ],
+          "id": "132ba468-60ea-4179-8802-fb7bb3bb6a48"
+        },
+        {
+          "name": "Agents",
+          "item": [
+            {
+              "name": "Run Agent",
+              "id": "3d2f6642-b85b-4c62-8917-9589ded0639c",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_type\": \"document.uploaded\",\n  \"doc_id\": 1,\n  \"chat_id\": 1,\n  \"org_id\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{ai_service}}/agents/run",
+                  "host": [
+                    "{{ai_service}}"
+                  ],
+                  "path": [
+                    "agents",
+                    "run"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "id": "d851e168-3470-44e0-a8f2-e5ef5beeb8f5"
+        },
+        {
+          "name": "RAG",
+          "item": [
+            {
+              "name": "Ingest Document",
+              "id": "43522960-3ae5-4df5-a15f-c22eac1646f2",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"doc_id\": 1,\n  \"org_id\": 1,\n  \"file_path\": \"/media/documents/sample.pdf\"\n}"
+                },
+                "url": {
+                  "raw": "{{ai_service}}/rag/ingest",
+                  "host": [
+                    "{{ai_service}}"
+                  ],
+                  "path": [
+                    "rag",
+                    "ingest"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Query (RAG)",
+              "id": "e3967e27-28db-4b96-b20f-5bbc63a00619",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"question\": \"What are the key dates in this contract?\",\n  \"doc_id\": 1,\n  \"org_id\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{ai_service}}/rag/query",
+                  "host": [
+                    "{{ai_service}}"
+                  ],
+                  "path": [
+                    "rag",
+                    "query"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "id": "0435cab9-2456-4cf6-9033-47593f83e090"
+        }
+      ],
+      "id": "54a3a0fa-f04e-46d6-886f-721b430c70aa"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "id": "758395fa-567b-4016-bd63-5c8c4f8f512e",
+      "key": "core_api",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "id": "bceb9c28-72fb-4e4c-b467-8df53837b20d",
+      "key": "ai_service",
+      "value": "http://localhost:8001",
+      "type": "string"
+    },
+    {
+      "id": "ad7c13dc-4086-4c61-ba0e-d19a9a038ed5",
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "id": "70caa25f-1888-4e8e-b298-f0484be6ce3b",
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "id": "9951cff3-3428-44bd-a22a-e1429ffc0601",
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "id": "2781aa30-b0b1-4c2c-9827-8d0a1e99e3a2",
+      "key": "chat_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}
