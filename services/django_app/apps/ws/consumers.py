@@ -199,9 +199,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 {
                     "event_type": "chat.question",
                     "payload": json.dumps({
-                        "chat_id":  self.chat_id,
-                        "org_id":   self.user.org_id,
-                        "user_id":  self.user.id,
+                        "chat_id":  int(self.chat_id),   # URL route kwargs are strings
+                        "org_id":   int(self.user.org_id),
+                        "user_id":  int(self.user.id),
                         "username": self.user.username,
                         "question": question,
                     }),

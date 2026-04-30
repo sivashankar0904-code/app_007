@@ -170,9 +170,11 @@ class AIStreamConsumer:
         from rag.retriever import retrieve, format_context
         from config import get_settings
 
-        chat_id  = payload.get("chat_id")
-        org_id   = payload.get("org_id")
-        user_id  = payload.get("user_id")
+        # Cast to int — Redis Stream values are bytes/strings;
+        # JSON parses numbers correctly but guard defensively
+        chat_id  = int(payload.get("chat_id"))
+        org_id   = int(payload.get("org_id"))
+        user_id  = int(payload.get("user_id"))
         question = payload.get("question", "")
 
         logger.info(f"[Consumer] RAG Q&A | chat={chat_id} | q={question[:80]}")
