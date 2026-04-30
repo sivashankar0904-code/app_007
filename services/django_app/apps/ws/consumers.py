@@ -127,8 +127,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         Flow:
           1. Validate + parse JSON
-          2. Broadcast human message to all users in the chat group
+          2a. Regular message → broadcast to all users in the chat group
+          2b. Question → send ONLY to the asking user's private group (held back
+              from the room until they decide Keep / Share after seeing the answer)
           3. If message is a question → publish to ai:events for RAG answer
+
+        WHY hold the question back:
+          User A's question should stay invisible to User B until User A
+          decides to share the AI reply. If we broadcast immediately, User B
+          sees the question with no context and no answer yet — confusing.
+          The question + answer pair are revealed together only on Share.
         """
         if not text_data or not text_data.strip():
             await self.send(text_data=json.dumps({"error": "Empty message"}))
@@ -147,19 +155,30 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({"error": "Missing 'message' field"}))
             return
 
-        # Step 1: broadcast human message immediately
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                "type":    "chat.message",
-                "message": message,
-                "sender":  self.user.username,
-            },
-        )
-
-        # Step 2: if it's a question, trigger RAG asynchronously
         if _is_question(message):
+            # Step 2b: question — send only to the asking user (private group)
+            # User B sees nothing until User A clicks "Share with team"
+            await self.channel_layer.group_send(
+                self.private_group,
+                {
+                    "type":       "chat.message",
+                    "message":    message,
+                    "sender":     self.user.username,
+                    "is_private": True,   # UI renders it as a pending private message
+                },
+            )
+            # Step 3: trigger RAG — AI reply will also arrive privately
             await self._publish_question(message)
+        else:
+            # Step 2a: regular message — broadcast to everyone in the room
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    "type":    "chat.message",
+                    "message": message,
+                    "sender":  self.user.username,
+                },
+            )
 
     async def _publish_question(self, question: str):
         """

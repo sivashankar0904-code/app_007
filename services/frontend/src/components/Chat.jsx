@@ -35,6 +35,17 @@ export default function Chat({ user, accessToken, onLogout }) {
       return
     }
 
+    // User's own question — held private, shown only to them while AI thinks
+    if (!data.is_bot && data.is_private) {
+      setMessages(prev => [...prev, {
+        type:   'question_pending',
+        sender: data.sender,
+        text:   data.message,
+        ts:     Date.now(),
+      }])
+      return
+    }
+
     // Private bot reply — only the asking user sees this with action buttons
     if (data.is_bot && data.is_private) {
       setMessages(prev => [...prev, {
@@ -222,6 +233,19 @@ export default function Chat({ user, accessToken, onLogout }) {
               return <UploadBubble key={msg.id} msg={msg} />
             }
 
+            // User's own question — visible only to them, dimmed with 🔒
+            if (msg.type === 'question_pending') {
+              return (
+                <div key={msg.ts} style={{ ...styles.msgRow, alignItems: 'flex-end' }}>
+                  <div style={styles.questionPendingBubble}>
+                    <span style={styles.questionPendingLock}>🔒</span>
+                    <span>{msg.text}</span>
+                    <span style={styles.questionPendingLabel}>asking AI…</span>
+                  </div>
+                </div>
+              )
+            }
+
             if (msg.type === 'bot_private') {
               return (
                 <PrivateBotBubble
@@ -229,11 +253,22 @@ export default function Chat({ user, accessToken, onLogout }) {
                   msg={msg}
                   chatId={chatId}
                   accessToken={accessToken}
-                  onResolve={(ts) =>
-                    setMessages(prev =>
-                      prev.map(m => m.ts === ts ? { ...m, resolved: true } : m)
-                    )
-                  }
+                  onResolve={(ts, shared) => {
+                    if (shared) {
+                      // Shared — remove both the pending question bubble and the
+                      // private bot bubble (the broadcast will add them back publicly)
+                      setMessages(prev =>
+                        prev.filter(m =>
+                          m.ts !== ts && m.type !== 'question_pending'
+                        )
+                      )
+                    } else {
+                      // Kept private — just hide the action buttons
+                      setMessages(prev =>
+                        prev.map(m => m.ts === ts ? { ...m, resolved: true } : m)
+                      )
+                    }
+                  }}
                 />
               )
             }
@@ -372,19 +407,19 @@ function PrivateBotBubble({ msg, chatId, accessToken, onResolve }) {
   const [shareErr, setShareErr] = useState('')
 
   const handleKeep = () => {
-    onResolve(msg.ts)
+    onResolve(msg.ts, false)  // false = not shared, just hide buttons
   }
 
   const handleShare = async () => {
     setSharing(true)
     setShareErr('')
     try {
-      const resp = await fetch('http://localhost:8000/api/chat/share-message/', {
+      const resp = await fetch('/api/chat/share-message/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // WHY Authorization: the share endpoint accepts authenticated users,
-          // not just the internal key — the user is sharing their own reply
+          // WHY Authorization: share endpoint authenticates via JWT,
+          // not the internal key — this is a user action, not a service call
           'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
@@ -397,7 +432,7 @@ function PrivateBotBubble({ msg, chatId, accessToken, onResolve }) {
         const err = await resp.json().catch(() => ({}))
         throw new Error(err.error ?? `HTTP ${resp.status}`)
       }
-      onResolve(msg.ts)
+      onResolve(msg.ts, true)  // true = shared, remove private bubbles entirely
     } catch (e) {
       setShareErr(e.message)
       setSharing(false)
@@ -543,6 +578,16 @@ const styles = {
   },
   msgRow:      { display: 'flex', flexDirection: 'column', gap: 2 },
   senderLabel: { fontSize: '0.72rem', color: '#64748b', marginLeft: 4 },
+  // Question pending bubble — user's own question, held private
+  questionPendingBubble: {
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+    alignSelf: 'flex-end', maxWidth: '65%',
+    padding: '0.55rem 0.85rem', borderRadius: 10,
+    background: '#1e293b', border: '1px dashed #4b5563',
+    color: '#64748b', fontSize: '0.88rem', fontStyle: 'italic',
+  },
+  questionPendingLock:  { fontSize: '0.8rem', flexShrink: 0 },
+  questionPendingLabel: { fontSize: '0.72rem', color: '#4b5563', marginLeft: 4, whiteSpace: 'nowrap' },
   bubble: {
     maxWidth: '65%', padding: '0.55rem 0.85rem', borderRadius: 10,
     fontSize: '0.9rem', lineHeight: 1.45, wordBreak: 'break-word',
