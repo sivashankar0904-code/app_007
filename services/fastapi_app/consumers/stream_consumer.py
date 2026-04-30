@@ -67,6 +67,8 @@ class AIStreamConsumer:
         # Route to correct workflow
         if event_type == "document.uploaded":
             await self._on_document_uploaded(payload)
+        elif event_type == "chat.question":
+            await self._on_chat_question(payload)
         else:
             logger.warning(f"Unknown event type: {event_type}")
 
@@ -148,3 +150,86 @@ class AIStreamConsumer:
 
         except Exception as e:
             logger.error(f"[Consumer] Failed to post summary to chat: {e}")
+
+    async def _on_chat_question(self, payload: dict):
+        """
+        RAG Q&A pipeline triggered when a user asks a question in the chat.
+
+        Flow:
+          1. Embed the question (sentence-transformers, local)
+          2. Cosine similarity search in pgvector — top-k relevant chunks
+          3. Format chunks into a readable answer
+          4. Post answer as bot message via Django internal API
+
+        WHY extractive (not LLM generation):
+          HF free-tier serverless API does not host 7B models.
+          Extractive RAG — returning the actual document text that answers
+          the question — is honest, fast, and often more accurate than
+          hallucination-prone generation. LLM layer can be added later.
+        """
+        from rag.retriever import retrieve, format_context
+        from config import get_settings
+
+        chat_id  = payload.get("chat_id")
+        org_id   = payload.get("org_id")
+        user_id  = payload.get("user_id")
+        question = payload.get("question", "")
+
+        logger.info(f"[Consumer] RAG Q&A | chat={chat_id} | q={question[:80]}")
+
+        try:
+            chunks = await retrieve(
+                query=question,
+                org_id=org_id,
+                chat_id=chat_id,
+                top_k=3,
+            )
+        except Exception as e:
+            logger.error(f"[Consumer] Retrieval failed: {e}")
+            chunks = []
+
+        # ── Format answer ─────────────────────────────────────────────────────
+        if not chunks:
+            answer = (
+                f"🔍 I searched the uploaded documents but couldn't find "
+                f"relevant information for: *{question}*\n\n"
+                f"Try uploading a document first, then ask questions about it."
+            )
+        else:
+            top = chunks[0]
+            rest = chunks[1:] if len(chunks) > 1 else []
+
+            lines = [f"🔍 **Based on the uploaded documents:**\n"]
+            lines.append(f"{top['content']}")
+
+            if rest:
+                lines.append("\n**Also relevant:**")
+                for c in rest:
+                    # Show a short excerpt (first 200 chars) for secondary chunks
+                    excerpt = c["content"][:200].rstrip()
+                    if len(c["content"]) > 200:
+                        excerpt += "…"
+                    lines.append(f"• {excerpt}")
+
+            answer = "\n".join(lines)
+
+        # ── Post privately to the asking user only ────────────────────────────
+        # WHY private: the user gets a personal AI reply first.
+        # They decide whether to keep it or share it with the group.
+        try:
+            settings = get_settings()
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    f"{settings.django_internal_url}/api/chat/bot-message/",
+                    json={
+                        "chat_id":            chat_id,
+                        "content":            answer,
+                        "private_to_user_id": user_id,   # private delivery
+                        "question":           question,   # shown in UI above buttons
+                    },
+                    headers={"X-Internal-Key": settings.internal_api_key},
+                )
+                resp.raise_for_status()
+            logger.info(f"[Consumer] RAG answer posted privately to user_{user_id}")
+        except Exception as e:
+            logger.error(f"[Consumer] Failed to post RAG answer: {e}")

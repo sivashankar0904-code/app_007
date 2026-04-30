@@ -34,6 +34,20 @@ export default function Chat({ user, accessToken, onLogout }) {
       setMessages(prev => [...prev, { type: 'error', text: data.error, ts: Date.now() }])
       return
     }
+
+    // Private bot reply — only the asking user sees this with action buttons
+    if (data.is_bot && data.is_private) {
+      setMessages(prev => [...prev, {
+        type:     'bot_private',
+        sender:   data.sender,
+        text:     data.message,
+        question: data.question ?? '',
+        resolved: false,   // true once user picks Keep or Share
+        ts:       Date.now(),
+      }])
+      return
+    }
+
     setMessages(prev => [...prev, {
       type:   data.is_bot ? 'bot' : 'message',
       sender: data.sender,
@@ -208,6 +222,22 @@ export default function Chat({ user, accessToken, onLogout }) {
               return <UploadBubble key={msg.id} msg={msg} />
             }
 
+            if (msg.type === 'bot_private') {
+              return (
+                <PrivateBotBubble
+                  key={msg.ts}
+                  msg={msg}
+                  chatId={chatId}
+                  accessToken={accessToken}
+                  onResolve={(ts) =>
+                    setMessages(prev =>
+                      prev.map(m => m.ts === ts ? { ...m, resolved: true } : m)
+                    )
+                  }
+                />
+              )
+            }
+
             if (msg.type === 'bot') {
               return <BotBubble key={i} msg={msg} />
             }
@@ -330,6 +360,110 @@ function BotBubble({ msg }) {
   )
 }
 
+// ── Private bot bubble ────────────────────────────────────────────────────────
+//
+// Shown ONLY to the user who asked the question.
+// Two actions:
+//   Keep private — removes buttons, message stays visible only to this user
+//   Share        — POSTs to /api/chat/share-message/ → broadcasts to whole room
+
+function PrivateBotBubble({ msg, chatId, accessToken, onResolve }) {
+  const [sharing, setSharing] = useState(false)
+  const [shareErr, setShareErr] = useState('')
+
+  const handleKeep = () => {
+    onResolve(msg.ts)
+  }
+
+  const handleShare = async () => {
+    setSharing(true)
+    setShareErr('')
+    try {
+      const resp = await fetch('http://localhost:8000/api/chat/share-message/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // WHY Authorization: the share endpoint accepts authenticated users,
+          // not just the internal key — the user is sharing their own reply
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          chat_id:  parseInt(chatId, 10),
+          question: msg.question,
+          answer:   msg.text,
+        }),
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error ?? `HTTP ${resp.status}`)
+      }
+      onResolve(msg.ts)
+    } catch (e) {
+      setShareErr(e.message)
+      setSharing(false)
+    }
+  }
+
+  const lines = msg.text.split('\n').filter(Boolean)
+
+  return (
+    <div style={styles.botWrapper}>
+      <div style={styles.botHeader}>
+        <span style={styles.botIcon}>🤖</span>
+        <span style={styles.botName}>AI Assistant</span>
+        <span style={styles.privateTag}>🔒 Only you can see this</span>
+      </div>
+
+      {/* Question echo */}
+      {msg.question && (
+        <div style={styles.privateQuestion}>
+          <span style={styles.privateQuestionLabel}>Your question: </span>
+          {msg.question}
+        </div>
+      )}
+
+      <div style={{ ...styles.botBubble, ...styles.privateBubble }}>
+        {lines.map((line, i) => {
+          const formatted = line.replace(/\*\*(.+?)\*\*/g, (_, t) => `<strong>${t}</strong>`)
+          return (
+            <p
+              key={i}
+              style={styles.botLine}
+              dangerouslySetInnerHTML={{ __html: formatted }}
+            />
+          )
+        })}
+
+        {/* Action buttons — hidden after resolved */}
+        {!msg.resolved && (
+          <div style={styles.privateActions}>
+            <button
+              onClick={handleKeep}
+              style={styles.keepBtn}
+              disabled={sharing}
+            >
+              🔒 Keep private
+            </button>
+            <button
+              onClick={handleShare}
+              style={styles.shareBtn}
+              disabled={sharing}
+            >
+              {sharing ? 'Sharing…' : '💬 Share with team'}
+            </button>
+            {shareErr && <span style={styles.shareErr}>⚠ {shareErr}</span>}
+          </div>
+        )}
+
+        {/* After resolved — subtle confirmation */}
+        {msg.resolved && (
+          <p style={styles.resolvedNote}>✓ Kept private</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatBytes(bytes) {
@@ -439,6 +573,48 @@ const styles = {
     fontSize: '0.88rem',
     lineHeight: 1.6,
     color: '#e0e7ff',
+  },
+  // Private bot bubble
+  privateTag: {
+    marginLeft: 'auto',
+    fontSize: '0.68rem', color: '#a78bfa',
+    background: '#2e1065', padding: '2px 7px',
+    borderRadius: 4, fontWeight: 600,
+  },
+  privateQuestion: {
+    fontSize: '0.8rem', color: '#94a3b8',
+    marginBottom: '0.35rem',
+    paddingLeft: 4,
+  },
+  privateQuestionLabel: {
+    fontWeight: 700, color: '#64748b',
+  },
+  privateBubble: {
+    borderColor: '#6d28d9',
+    background: '#1a0533',
+  },
+  privateActions: {
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+    marginTop: '0.85rem', flexWrap: 'wrap',
+  },
+  keepBtn: {
+    padding: '0.4rem 0.85rem', borderRadius: 6,
+    border: '1px solid #4b5563', background: '#1e293b',
+    color: '#94a3b8', fontSize: '0.8rem', cursor: 'pointer',
+    fontWeight: 600,
+  },
+  shareBtn: {
+    padding: '0.4rem 0.85rem', borderRadius: 6,
+    border: 'none', background: '#4f46e5',
+    color: '#fff', fontSize: '0.8rem', cursor: 'pointer',
+    fontWeight: 600,
+  },
+  shareErr: {
+    fontSize: '0.75rem', color: '#f87171',
+  },
+  resolvedNote: {
+    marginTop: '0.6rem', fontSize: '0.75rem',
+    color: '#4b5563', fontStyle: 'italic',
   },
   // Upload bubble
   uploadBubble: {

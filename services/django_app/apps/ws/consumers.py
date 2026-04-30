@@ -7,10 +7,24 @@ Authentication:
 
   - Token is validated BEFORE accept() — unauthenticated clients get close code 4001
   - User is attached to self.user for use in receive/broadcast
+
+RAG Q&A trigger:
+  When a user's message looks like a question (contains '?' or starts with a
+  question word), the consumer publishes a chat.question event to the ai:events
+  Redis Stream. The FastAPI AI service consumes it, retrieves relevant document
+  chunks from pgvector, and posts an answer back as a bot message.
+
+  WHY Redis Stream (not direct HTTP to FastAPI):
+    The consumer is async and must not block the WebSocket event loop waiting
+    for an LLM response. Publishing to Redis is instant; FastAPI picks it up
+    in its own consumer loop and responds when ready — fully decoupled.
 """
 import json
+import logging
+import os
 from urllib.parse import parse_qs
 
+import redis.asyncio as aioredis
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth import get_user_model
@@ -18,6 +32,34 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+
+# Words that signal a question even without a '?'
+_QUESTION_STARTERS = {
+    "what", "who", "how", "when", "where", "why",
+    "explain", "summarize", "summarise", "tell", "describe",
+    "is", "are", "does", "can", "could", "would", "should",
+    "which", "show", "list", "find",
+}
+
+
+def _is_question(message: str) -> bool:
+    """
+    Heuristic: treat a message as a question if it contains '?' or starts
+    with a recognised question word.
+
+    WHY heuristic (not NLP): zero latency, zero dependency.
+    Good enough for a collaborative AI thread demo.
+    """
+    text = message.strip().lower()
+    if not text:
+        return False
+    if "?" in text:
+        return True
+    first_word = text.split()[0].rstrip(",.!;:")
+    return first_word in _QUESTION_STARTERS
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -61,17 +103,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.chat_id = self.scope["url_route"]["kwargs"]["chat_id"]
         self.group_name = f"chat_{self.chat_id}"
 
+        # Private group — only this user's connections receive messages sent here.
+        # WHY per-user group (not channel_name direct): channel_name changes on
+        # reconnect; user_id is stable. Sending to this group reaches the user
+        # even if they have multiple tabs open.
+        self.private_group = f"private_user_{self.user.id}"
+
         await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.channel_layer.group_add(self.private_group, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if hasattr(self, "private_group"):
+            await self.channel_layer.group_discard(self.private_group, self.channel_name)
 
     # ── Messaging ─────────────────────────────────────────────────────────────
 
     async def receive(self, text_data):
-        """Receive message from WebSocket client, broadcast to room group."""
+        """
+        Receive message from WebSocket client.
+
+        Flow:
+          1. Validate + parse JSON
+          2. Broadcast human message to all users in the chat group
+          3. If message is a question → publish to ai:events for RAG answer
+        """
         if not text_data or not text_data.strip():
             await self.send(text_data=json.dumps({"error": "Empty message"}))
             return
@@ -89,19 +147,60 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({"error": "Missing 'message' field"}))
             return
 
+        # Step 1: broadcast human message immediately
         await self.channel_layer.group_send(
             self.group_name,
             {
-                "type": "chat.message",
+                "type":    "chat.message",
                 "message": message,
-                "sender": self.user.username,
+                "sender":  self.user.username,
             },
         )
+
+        # Step 2: if it's a question, trigger RAG asynchronously
+        if _is_question(message):
+            await self._publish_question(message)
+
+    async def _publish_question(self, question: str):
+        """
+        Publish a chat.question event to the ai:events Redis Stream.
+
+        FastAPI's AIStreamConsumer picks this up, runs vector search,
+        and posts the answer back via /api/chat/bot-message/.
+
+        WHY fire-and-forget (no await on response):
+          The LLM/retrieval can take 1-5 seconds. We don't want to hold the
+          WebSocket receive loop. The answer arrives asynchronously as a bot
+          message broadcast — same path as any other message.
+        """
+        try:
+            client = aioredis.from_url(REDIS_URL)
+            await client.xadd(
+                "ai:events",
+                {
+                    "event_type": "chat.question",
+                    "payload": json.dumps({
+                        "chat_id":  self.chat_id,
+                        "org_id":   self.user.org_id,
+                        "user_id":  self.user.id,
+                        "username": self.user.username,
+                        "question": question,
+                    }),
+                },
+            )
+            await client.aclose()
+            logger.info(
+                f"[WS] Published chat.question | chat={self.chat_id} | q={question[:60]}"
+            )
+        except Exception as e:
+            logger.error(f"[WS] Failed to publish question to Redis: {e}")
 
     async def chat_message(self, event):
         """Receive broadcast from group, forward to this WebSocket client."""
         await self.send(text_data=json.dumps({
-            "sender":   event["sender"],
-            "message":  event["message"],
-            "is_bot":   event.get("is_bot", False),
+            "sender":     event["sender"],
+            "message":    event["message"],
+            "is_bot":     event.get("is_bot", False),
+            "is_private": event.get("is_private", False),  # triggers action buttons
+            "question":   event.get("question", ""),
         }))
