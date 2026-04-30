@@ -201,17 +201,15 @@ class AIStreamConsumer:
             top = chunks[0]
             rest = chunks[1:] if len(chunks) > 1 else []
 
+            # Use extracted answer sentences (pinpoint) not the full raw chunk
             lines = [f"🔍 **Based on the uploaded documents:**\n"]
-            lines.append(f"{top['content']}")
+            lines.append(top["answer"])
 
             if rest:
                 lines.append("\n**Also relevant:**")
                 for c in rest:
-                    # Show a short excerpt (first 200 chars) for secondary chunks
-                    excerpt = c["content"][:200].rstrip()
-                    if len(c["content"]) > 200:
-                        excerpt += "…"
-                    lines.append(f"• {excerpt}")
+                    # Use extracted sentences for secondary results too
+                    lines.append(f"• {c['answer']}")
 
             answer = "\n".join(lines)
 

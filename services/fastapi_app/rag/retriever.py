@@ -14,6 +14,7 @@ WHY top-k chunks (not the full document):
   keeps the prompt focused and within token limits.
 """
 import logging
+import re
 
 import asyncio
 
@@ -26,6 +27,71 @@ from rag.models import DocumentChunk
 logger = logging.getLogger(__name__)
 
 TOP_K = 5  # number of chunks to return per query
+
+# Common words that add no signal for sentence relevance scoring
+_STOP_WORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been",
+    "what", "who", "how", "when", "where", "which", "why",
+    "of", "in", "for", "to", "and", "or", "but", "with",
+    "this", "that", "it", "by", "at", "from", "on", "its",
+    "does", "do", "did", "have", "has", "had", "will", "would",
+    "can", "could", "should", "may", "might", "shall",
+}
+
+
+def extract_best_sentences(content: str, question: str, n: int = 3) -> str:
+    """
+    Extract the n most question-relevant sentences from a chunk.
+
+    WHY sentence extraction (not returning full chunk):
+      A 500-char chunk contains many sentences. Only 1-3 are actually
+      relevant to the specific question. Returning all of them buries
+      the answer in noise.
+
+    Approach: keyword overlap scoring — fast, zero dependencies.
+      Score each sentence by how many question keywords it contains.
+      Return top-n sentences in their original order (preserves readability).
+    """
+    question_keywords = set(question.lower().split()) - _STOP_WORDS
+
+    # Split on sentence boundaries
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', content.strip())]
+    sentences = [s for s in sentences if len(s) > 20]  # skip fragments
+
+    if not sentences:
+        return content[:400]
+
+    def _score(sent: str) -> int:
+        sent_words = set(sent.lower().split())
+        return len(question_keywords & sent_words)
+
+    # Rank by relevance, preserve original order for top-n
+    scored = sorted(range(len(sentences)), key=lambda i: _score(sentences[i]), reverse=True)
+    top_indices = sorted(scored[:n])
+    best = " ".join(sentences[i] for i in top_indices)
+
+    # Fallback: if no keyword overlap at all, return start of chunk
+    return best if best.strip() else content[:400]
+
+
+def _deduplicate(chunks: list[dict]) -> list[dict]:
+    """
+    Remove chunks with near-identical content (same document uploaded multiple
+    times). Uses the first 120 chars as a fingerprint — good enough for
+    detecting re-uploads of the same file.
+
+    WHY deduplicate: if a user uploads the same PDF twice, both versions sit
+    in pgvector. Without dedup, all top-k slots fill with identical content,
+    wasting context and confusing the user.
+    """
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for chunk in chunks:
+        fingerprint = chunk["content"][:120].strip().lower()
+        if fingerprint not in seen:
+            seen.add(fingerprint)
+            unique.append(chunk)
+    return unique
 
 
 async def _embed_query(query: str) -> list[float]:
@@ -94,7 +160,7 @@ async def retrieve(
         result = await session.execute(stmt)
         rows = result.all()
 
-    chunks = [
+    raw_chunks = [
         {
             "content":     row.DocumentChunk.content,
             "doc_id":      row.DocumentChunk.doc_id,
@@ -104,10 +170,18 @@ async def retrieve(
         for row in rows
     ]
 
+    # Remove near-duplicate chunks (same doc uploaded multiple times)
+    unique_chunks = _deduplicate(raw_chunks)
+
+    # Extract the most relevant sentences from each chunk
+    for chunk in unique_chunks:
+        chunk["answer"] = extract_best_sentences(chunk["content"], query)
+
     logger.info(
-        f"[Retriever] query='{query[:50]}' org={org_id} → {len(chunks)} chunks returned"
+        f"[Retriever] query='{query[:50]}' org={org_id} "
+        f"→ {len(raw_chunks)} raw / {len(unique_chunks)} unique chunks"
     )
-    return chunks
+    return unique_chunks
 
 
 def format_context(chunks: list[dict]) -> str:
